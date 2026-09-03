@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f3f1">
+<title>Salidas guardadas</title>
+<style>
+  :root{
+    --fondo:#f4f3f1;
+    --panel:#ffffff;
+    --texto:#2e2e2c;
+    --gris:#8b8981;
+    --gris-claro:#b6b3ab;
+    --linea:#e3e1db;
+    --acento:#57564f;
+    --acento-suave:#eceae5;
+    --sombra:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:var(--fondo);color:var(--texto);min-height:100vh;
+    padding:28px 16px 60px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header{border-bottom:1px solid var(--linea);padding-bottom:16px;margin-bottom:20px;
+    display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  header .tit{flex:1;min-width:200px}
+  header h1{font-size:clamp(21px,4vw,28px);font-weight:600;letter-spacing:-.3px}
+  header p{color:var(--gris);font-size:14px;margin-top:4px}
+  header a{color:var(--acento)}
+  .btn{
+    border:1px solid var(--linea);border-radius:9px;padding:10px 16px;font-size:14px;
+    font-weight:600;cursor:pointer;font-family:inherit;background:var(--panel);color:var(--texto);
+    transition:background .15s,border-color .15s;
+  }
+  .btn:hover{background:var(--acento-suave);border-color:var(--gris-claro)}
+
+  .estado{
+    display:inline-block;margin-top:9px;font-size:11px;font-weight:600;
+    color:var(--gris);background:var(--acento-suave);border:1px solid var(--linea);
+    border-radius:20px;padding:3px 11px;letter-spacing:.3px;
+  }
+  .estado.ok{color:#33604a;background:#e9f2ec;border-color:#cfe2d6}
+  .estado.malo{color:#8a4438;background:#fdf3f1;border-color:#e6c9c2}
+
+  .caja{
+    background:var(--panel);border:1px solid var(--linea);border-radius:14px;
+    box-shadow:var(--sombra);overflow:hidden;
+  }
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+  thead th{
+    text-align:left;font-size:11px;font-weight:600;color:var(--gris);
+    text-transform:uppercase;letter-spacing:.8px;padding:12px 14px;
+    border-bottom:1px solid var(--linea);white-space:nowrap;background:#fbfaf8;
+  }
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--linea);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fbfaf8}
+  td.fecha{font-weight:600;white-space:nowrap}
+  td.titulo{font-weight:600}
+  td .vacio{color:var(--gris-claro)}
+  .miniatura{
+    width:46px;height:46px;border-radius:8px;object-fit:cover;
+    border:1px solid var(--linea);display:block;
+  }
+  .mensaje{padding:26px 18px;text-align:center;color:var(--gris);font-size:14px;line-height:1.6}
+  .mensaje.error{color:#8a4438}
+  .mensaje code{
+    background:var(--acento-suave);border-radius:5px;padding:2px 6px;font-size:12.5px;
+  }
+  footer{color:var(--gris-claro);font-size:12px;margin-top:22px}
+
+  @media(max-width:640px){
+    body{padding:18px 12px 40px}
+    thead th,tbody td{padding:10px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tit">
+      <h1>Salidas guardadas</h1>
+      <p>Datos le&iacute;dos de MySQL (Aiven) v&iacute;a <code>/api/salidas</code>. Ir al <a href="index.html">calendario</a>.</p>
+      <span class="estado" id="estado">Cargando&hellip;</span>
+    </div>
+    <button class="btn" id="btnRecargar" type="button">Actualizar</button>
+  </header>
+
+  <div class="caja">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Plan</th>
+            <th>Hora</th>
+            <th>Tipo</th>
+            <th>Lugar</th>
+            <th>Nota</th>
+            <th>Foto</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+    </div>
+    <div class="mensaje" id="mensaje">Consultando la base de datos&hellip;</div>
+  </div>
+
+  <footer id="resumen"></footer>
+</div>
+
+<script>
+(function(){
+  var API = '/api/salidas';
+  var COLUMNAS = 7;
+
+  function $(id){ return document.getElementById(id); }
+
+  function estado(txt, clase){
+    var e = $('estado');
+    e.textContent = txt;
+    e.className = 'estado' + (clase ? ' ' + clase : '');
+  }
+
+  function mensaje(html, error){
+    var m = $('mensaje');
+    if(!html){ m.style.display = 'none'; m.innerHTML = ''; return; }
+    m.style.display = 'block';
+    m.className = 'mensaje' + (error ? ' error' : '');
+    m.innerHTML = html;
+  }
+
+  function celda(fila, texto, clase){
+    var td = document.createElement('td');
+    if(clase) td.className = clase;
+    if(texto){
+      td.textContent = texto;
+    } else {
+      var s = document.createElement('span');
+      s.className = 'vacio';
+      s.textContent = '—';
+      td.appendChild(s);
+    }
+    fila.appendChild(td);
+    return td;
+  }
+
+  function pintar(datos){
+    var cuerpo = $('cuerpo');
+    cuerpo.innerHTML = '';
+
+    if(!datos.length){
+      mensaje('No hay ninguna salida guardada todav&iacute;a. Agenda una desde el ' +
+              '<a href="index.html">calendario</a>.', false);
+      $('resumen').textContent = '';
+      return;
+    }
+
+    datos.forEach(function(s){
+      var tr = document.createElement('tr');
+      celda(tr, s.fecha,  'fecha');
+      celda(tr, s.titulo, 'titulo');
+      celda(tr, s.hora);
+      celda(tr, s.tipo);
+      celda(tr, s.lugar);
+      celda(tr, s.nota);
+
+      var tdFoto = document.createElement('td');
+      if(s.foto){
+        var img = document.createElement('img');
+        img.className = 'miniatura';
+        img.src = s.foto;
+        img.alt = s.titulo || 'foto';
+        img.loading = 'lazy';
+        // si la ruta ya no existe, mostramos un guion en vez de la imagen rota
+        img.onerror = function(){
+          tdFoto.innerHTML = '';
+          var s2 = document.createElement('span');
+          s2.className = 'vacio';
+          s2.textContent = '—';
+          tdFoto.appendChild(s2);
+        };
+        tdFoto.appendChild(img);
+      } else {
+        var vac = document.createElement('span');
+        vac.className = 'vacio';
+        vac.textContent = '—';
+        tdFoto.appendChild(vac);
+      }
+      tr.appendChild(tdFoto);
+
+      cuerpo.appendChild(tr);
+    });
+
+    mensaje('', false);
+    $('resumen').textContent = datos.length + (datos.length === 1 ? ' salida' : ' salidas') +
+                               ' · actualizado ' + new Date().toLocaleTimeString('es-PE');
+  }
+
+  function cargar(){
+    estado('Consultando…', '');
+    mensaje('Consultando la base de datos&hellip;', false);
+    $('btnRecargar').disabled = true;
+
+    fetch(API, {cache:'no-store'})
+      .then(function(r){
+        return r.json().then(function(j){ return {http:r.status, cuerpo:j}; });
+      })
+      .then(function(res){
+        $('btnRecargar').disabled = false;
+        if(!res.cuerpo || !res.cuerpo.ok){
+          var err = (res.cuerpo && res.cuerpo.error) || ('HTTP ' + res.http);
+          estado('Error', 'malo');
+          mensaje('No se pudo leer la base de datos:<br><code>' + err + '</code>', true);
+          $('cuerpo').innerHTML = '';
+          return;
+        }
+        estado('Conectado a Aiven', 'ok');
+        pintar(res.cuerpo.datos || []);
+      })
+      ['catch'](function(e){
+        $('btnRecargar').disabled = false;
+        estado('Sin conexion', 'malo');
+        $('cuerpo').innerHTML = '';
+        mensaje('No se pudo llamar a <code>/api/salidas</code>.<br>' +
+                'Si estas viendo esto en XAMPP es normal: la funcion solo corre en ' +
+                'Vercel o con <code>vercel dev</code>.', true);
+        console.error(e);
+      });
+  }
+
+  $('btnRecargar').addEventListener('click', cargar);
+  cargar();
+})();
+</script>
+</body>
+</html>
