@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f3f1">
+<title>QR del calendario</title>
+<style>
+  :root{
+    --fondo:#f4f3f1;
+    --panel:#ffffff;
+    --texto:#2e2e2c;
+    --gris:#8b8981;
+    --gris-claro:#b6b3ab;
+    --linea:#e3e1db;
+    --acento:#57564f;
+    --acento-suave:#eceae5;
+    --sombra:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:var(--fondo);color:var(--texto);min-height:100vh;
+    padding:28px 16px 60px;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+
+  header{border-bottom:1px solid var(--linea);padding-bottom:16px;margin-bottom:20px}
+  header h1{font-size:clamp(21px,4vw,27px);font-weight:600;letter-spacing:-.3px}
+  header p{color:var(--gris);font-size:14px;margin-top:4px}
+  header a{color:var(--acento)}
+
+  .controles{
+    background:var(--panel);border:1px solid var(--linea);border-radius:14px;
+    padding:16px;box-shadow:var(--sombra);margin-bottom:24px;
+  }
+  label{
+    display:block;font-size:11px;font-weight:600;color:var(--gris);
+    text-transform:uppercase;letter-spacing:.7px;margin:14px 0 5px;
+  }
+  label:first-of-type{margin-top:0}
+  input,select{
+    width:100%;border:1px solid var(--linea);border-radius:9px;padding:11px 13px;
+    font-size:15px;font-family:inherit;background:var(--panel);color:var(--texto);outline:none;
+  }
+  input:focus,select:focus{border-color:var(--acento);box-shadow:0 0 0 3px rgba(87,86,79,.1)}
+  .fila{display:flex;gap:10px;flex-wrap:wrap}
+  .fila>div{flex:1 1 200px}
+  .acciones{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--linea);border-radius:9px;padding:11px 16px;font-size:14px;
+    font-weight:600;cursor:pointer;font-family:inherit;background:var(--panel);color:var(--texto);
+    transition:background .15s,border-color .15s;
+  }
+  .btn:hover{background:var(--acento-suave);border-color:var(--gris-claro)}
+  .btn-p{background:var(--acento);color:#fff;border-color:var(--acento)}
+  .btn-p:hover{background:#3f3e39;border-color:#3f3e39}
+
+  .sugerencias{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .chip{
+    background:var(--acento-suave);border:1px solid var(--linea);border-radius:20px;
+    padding:6px 13px;font-size:12px;font-weight:600;color:var(--texto);
+    cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block;
+  }
+  .chip:hover{background:var(--gris-claro);color:#fff;border-color:var(--gris-claro)}
+
+  .nota{
+    margin-top:14px;background:#faf9f7;border:1px solid var(--linea);color:var(--gris);
+    border-radius:9px;padding:10px 12px;font-size:12.5px;line-height:1.5;display:none;
+  }
+  .nota.ver{display:block}
+  .nota b{color:var(--texto)}
+  .nota.mal{background:#fdf3f1;border-color:#e6c9c2;color:#8a4438}
+  .nota.mal b{color:#7a3529}
+
+  /* ---- la tarjeta que se imprime ---- */
+  .zona-tarjeta{display:flex;justify-content:center}
+  .tarjeta{
+    background:var(--panel);border:1px solid var(--linea);border-radius:18px;
+    box-shadow:var(--sombra);padding:34px 30px 28px;width:360px;max-width:100%;
+    text-align:center;
+  }
+  .tarjeta .etiqueta{
+    font-size:11px;font-weight:600;color:var(--gris);
+    text-transform:uppercase;letter-spacing:2px;
+  }
+  .tarjeta .mensaje{
+    font-size:20px;font-weight:600;line-height:1.35;margin-top:10px;letter-spacing:-.2px;
+  }
+  .tarjeta .marco-qr{
+    margin:22px auto 0;padding:14px;background:#fff;
+    border:1px solid var(--linea);border-radius:14px;width:max-content;
+  }
+  .tarjeta canvas,.tarjeta img{display:block;width:240px;height:240px}
+  .tarjeta .pie{
+    margin-top:18px;font-size:11.5px;color:var(--gris-claro);
+    word-break:break-all;line-height:1.5;
+  }
+  .tarjeta .instru{
+    margin-top:14px;padding-top:14px;border-top:1px solid var(--linea);
+    font-size:12px;color:var(--gris);
+  }
+
+  @media(max-width:640px){
+    body{padding:18px 12px 40px}
+    .tarjeta{padding:26px 20px 22px}
+    .tarjeta canvas,.tarjeta img{width:200px;height:200px}
+    input,select{font-size:16px}
+    .btn{flex:1 1 auto}
+  }
+
+  @media print{
+    @page{margin:16mm}
+    body{background:#fff;padding:0}
+    header,.controles,.no-print{display:none!important}
+    .tarjeta{border:1px solid #ddd;box-shadow:none;width:340px;page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="no-print">
+    <h1>QR del calendario</h1>
+    <p>Genera el c&oacute;digo, imprime la tarjeta y list&oacute;. Volver al <a href="index.html">calendario</a>.</p>
+  </header>
+
+  <div class="controles no-print">
+    <label for="url">Direcci&oacute;n del calendario</label>
+    <input id="url" type="url" placeholder="https://tusitio.com/calendario/" spellcheck="false">
+    <div class="sugerencias">
+      <button type="button" class="chip" data-url="http://192.168.99.171/CALENDARIO/index.html">
+        Usar la IP de esta PC (192.168.99.171)
+      </button>
+      <a class="chip" id="probar" href="#" target="_blank" rel="noopener">Probar el enlace</a>
+    </div>
+
+    <div class="fila">
+      <div>
+        <label for="etiqueta">Texto peque&ntilde;o de arriba</label>
+        <input id="etiqueta" type="text" maxlength="30" value="Para ti">
+      </div>
+      <div>
+        <label for="mensaje">Mensaje</label>
+        <input id="mensaje" type="text" maxlength="80" value="Nuestro calendario de salidas">
+      </div>
+    </div>
+
+    <div class="fila">
+      <div>
+        <label for="instru">L&iacute;nea de instrucci&oacute;n</label>
+        <input id="instru" type="text" maxlength="60" value="Escanea con la c&aacute;mara del celular">
+      </div>
+      <div>
+        <label for="tam">Tama&ntilde;o del QR (para imprimir)</label>
+        <select id="tam">
+          <option value="600">Normal</option>
+          <option value="900" selected>Alto (recomendado)</option>
+          <option value="1200">M&aacute;ximo</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="acciones">
+      <button class="btn btn-p" id="btnGen">Generar</button>
+      <button class="btn" id="btnPrint">Imprimir tarjeta</button>
+      <button class="btn" id="btnPng">Descargar QR (PNG)</button>
+    </div>
+
+    <div class="nota" id="nota"></div>
+  </div>
+
+  <div class="zona-tarjeta">
+    <div class="tarjeta" id="tarjeta">
+      <div class="etiqueta" id="vEtiqueta">Para ti</div>
+      <div class="mensaje" id="vMensaje">Nuestro calendario de salidas</div>
+      <div class="marco-qr"><canvas id="qr" width="240" height="240"></canvas></div>
+      <div class="instru" id="vInstru">Escanea con la c&aacute;mara del celular</div>
+      <div class="pie" id="vUrl"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script>
+(function(){
+  function $(id){ return document.getElementById(id); }
+
+  var IP_LAN = 'http://192.168.99.171/CALENDARIO/index.html';
+
+  // direccion por defecto: la carpeta donde vive esta pagina.
+  // si estas viendo el archivo local, no sirve para un celular: usamos la IP de la red.
+  function urlPorDefecto(){
+    if(/^file:/i.test(location.href) ||
+       /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(location.href)){
+      return IP_LAN;
+    }
+    return location.href.replace(/qr\.html.*$/i, '') + 'index.html';
+  }
+
+  function avisar(html, mal){
+    var n = $('nota');
+    if(!html){ n.className = 'nota'; n.innerHTML = ''; return; }
+    n.className = 'nota ver' + (mal ? ' mal' : '');
+    n.innerHTML = html;
+  }
+
+  // direcciones que el QR NO puede abrir desde otro telefono
+  function direccionMuerta(u){
+    if(/^file:/i.test(u)){
+      return 'Esa es la ruta de un archivo en tu disco (<b>file://</b>). Un celular no puede abrirla. ' +
+             'Abre el calendario desde el navegador con <b>http://localhost/CALENDARIO/</b> y usa el ' +
+             'bot&oacute;n de la IP de arriba, o publica el sitio en un hosting.';
+    }
+    if(/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(u)){
+      return '<b>localhost</b> significa "esta misma computadora", por eso tu iPhone no lo abre. ' +
+             'Toca el bot&oacute;n <b>Usar la IP de esta PC</b> de arriba, o publica el calendario en un ' +
+             'hosting y pega ah&iacute; esa direcci&oacute;n.';
+    }
+    return '';
+  }
+
+  function revisarDireccion(u){
+    if(/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(u)){
+      avisar('Es una direcci&oacute;n de <b>red local</b>. Para que le abra a ella: su celular en el ' +
+             '<b>mismo wifi</b> que esta PC, XAMPP encendido, y que el wifi no tenga aislamiento de ' +
+             'invitados. Pru&eacute;balo t&uacute; primero con tu iPhone antes de darle la tarjeta.');
+      return;
+    }
+    avisar('');
+  }
+
+  var qr = null;
+
+  function generar(){
+    var u = $('url').value.trim();
+    if(!u){ alert('Escribe la direccion del calendario.'); $('url').focus(); return; }
+    if(!/^(https?|file):/i.test(u)){ u = 'http://' + u; $('url').value = u; }
+
+    // no generamos un QR que sabemos que no va a abrir en su telefono
+    var problema = direccionMuerta(u);
+    if(problema){
+      avisar(problema, true);
+      $('probar').href = u;
+      return;
+    }
+
+    var tam = Number($('tam').value);
+    var lienzo = $('qr');
+
+    try{
+      if(!window.QRious) throw new Error('sin libreria');
+      qr = new QRious({
+        element: lienzo,
+        value: u,
+        size: tam,
+        level: 'H',          // tolera dobleces y manchas al imprimir
+        padding: 0,
+        background: '#ffffff',
+        foreground: '#2e2e2c'
+      });
+    }catch(e){
+      avisar('No se pudo cargar el generador de QR. Revisa tu conexi&oacute;n a internet y recarga la p&aacute;gina.');
+      return;
+    }
+
+    // el canvas se dibuja grande para imprimir, pero se muestra chico
+    lienzo.style.width = '';
+    lienzo.style.height = '';
+
+    $('vEtiqueta').textContent = $('etiqueta').value;
+    $('vMensaje').textContent  = $('mensaje').value;
+    $('vInstru').textContent   = $('instru').value;
+    $('vUrl').textContent      = u.replace(/^https?:\/\//i, '');
+
+    $('vEtiqueta').style.display = $('etiqueta').value ? '' : 'none';
+    $('vInstru').style.display   = $('instru').value ? '' : 'none';
+
+    $('probar').href = u;
+    revisarDireccion(u);
+    try{ localStorage.setItem('qr_url', u); }catch(e){}
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chip[data-url]'), function(c){
+    c.addEventListener('click', function(){
+      $('url').value = this.getAttribute('data-url');
+      generar();
+    });
+  });
+
+  $('btnGen').addEventListener('click', generar);
+  $('btnPrint').addEventListener('click', function(){ generar(); setTimeout(function(){ window.print(); }, 120); });
+
+  $('btnPng').addEventListener('click', function(){
+    generar();
+    try{
+      var datos = $('qr').toDataURL('image/png');
+      var a = document.createElement('a');
+      a.href = datos;
+      a.download = 'qr-calendario.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }catch(e){
+      avisar('Tu navegador no dej&oacute; descargar la imagen. Manten presionado el QR y elige <b>Guardar imagen</b>.');
+    }
+  });
+
+  ['etiqueta','mensaje','instru'].forEach(function(id){
+    $(id).addEventListener('input', function(){
+      $('v' + id.charAt(0).toUpperCase() + id.slice(1)).textContent = this.value;
+    });
+  });
+  $('url').addEventListener('keydown', function(e){ if(e.key === 'Enter') generar(); });
+
+  var guardada = '';
+  try{ guardada = localStorage.getItem('qr_url') || ''; }catch(e){}
+  // si lo guardado no sirve para un celular, lo descartamos
+  if(guardada && direccionMuerta(guardada)){
+    guardada = '';
+    try{ localStorage.removeItem('qr_url'); }catch(e){}
+  }
+  $('url').value = guardada || urlPorDefecto();
+
+  if(window.QRious) generar();
+  else window.addEventListener('load', function(){
+    if(window.QRious) generar();
+    else avisar('No se pudo cargar el generador de QR (necesita internet la primera vez). Recarga la p&aacute;gina.');
+  });
+})();
+</script>
+</body>
+</html>

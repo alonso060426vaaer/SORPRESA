@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#f4f3f1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Salidas">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Calendario de salidas</title>
+<style>
+  :root{
+    --fondo:#f4f3f1;
+    --panel:#ffffff;
+    --texto:#2e2e2c;
+    --gris:#8b8981;
+    --gris-claro:#b6b3ab;
+    --linea:#e3e1db;
+    --acento:#57564f;
+    --acento-suave:#eceae5;
+    --sombra:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:var(--fondo);
+    color:var(--texto);
+    min-height:100vh;
+    padding:calc(28px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+            calc(60px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1000px;margin:0 auto;position:relative}
+
+  /* --- collage de fondo --- */
+  .collage{
+    position:fixed;inset:0;z-index:-2;display:none;overflow:hidden;
+    grid-auto-flow:dense;gap:3px;
+  }
+  .collage div{background-size:cover;background-position:center}
+  .collage .grande{grid-column:span 2;grid-row:span 2}
+  /* mas transparente en los bordes: las fotos se ven alrededor del calendario */
+  .velo{
+    position:fixed;inset:0;z-index:-1;display:none;
+    background:linear-gradient(90deg,
+      rgba(244,243,241,0) 0%,
+      rgba(244,243,241,.22) 14%,
+      rgba(244,243,241,.78) 32%,
+      rgba(244,243,241,.85) 50%,
+      rgba(244,243,241,.78) 68%,
+      rgba(244,243,241,.22) 86%,
+      rgba(244,243,241,0) 100%);
+  }
+  @media(max-width:1100px){
+    .velo{background:linear-gradient(160deg,rgba(244,243,241,.5) 0%,rgba(244,243,241,.58) 100%)}
+  }
+  @media(max-width:640px){
+    .velo{background:rgba(244,243,241,.28)}
+  }
+
+  header.top{
+    margin-bottom:20px;border-bottom:1px solid var(--linea);padding-bottom:18px;
+    display:flex;align-items:flex-start;gap:14px;
+  }
+  header.top .tit{flex:1;min-width:0}
+  header.top h1{
+    font-size:clamp(22px,4vw,30px);
+    font-weight:600;
+    letter-spacing:-.3px;
+  }
+  header.top p{color:var(--gris);margin-top:4px;font-size:14px}
+  .estado{
+    display:inline-block;margin-top:9px;font-size:11px;font-weight:600;
+    color:var(--gris);background:var(--acento-suave);border:1px solid var(--linea);
+    border-radius:20px;padding:3px 11px;letter-spacing:.3px;
+  }
+  .estado.nube{color:#33604a;background:#e9f2ec;border-color:#cfe2d6}
+  .estado.malo{color:#8a4438;background:#fdf3f1;border-color:#e6c9c2}
+  .fondo-btn{
+    background:var(--panel);border:1px solid var(--linea);color:var(--gris);
+    border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;font-family:inherit;
+    cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,color .15s;
+  }
+  .fondo-btn:hover{background:var(--acento-suave);border-color:var(--gris-claro);color:var(--texto)}
+  .fondo-btn.activo{background:var(--acento);border-color:var(--acento);color:#fff}
+
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 20px}
+  .stat{
+    background:var(--panel);border:1px solid var(--linea);border-radius:10px;
+    padding:10px 16px;min-width:104px;
+  }
+  .stat b{display:block;font-size:20px;font-weight:600}
+  .stat span{font-size:11px;color:var(--gris);text-transform:uppercase;letter-spacing:.8px}
+
+  .card{
+    background:var(--panel);border:1px solid var(--linea);border-radius:14px;padding:16px;
+    box-shadow:var(--sombra);
+  }
+
+  .nav{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+  .nav h2{font-size:17px;font-weight:600;flex:1;letter-spacing:-.2px}
+  .nav button{
+    background:var(--panel);border:1px solid var(--linea);color:var(--texto);
+    width:34px;height:34px;border-radius:8px;font-size:16px;cursor:pointer;
+    transition:background .15s,border-color .15s;line-height:1;
+  }
+  .nav button:hover{background:var(--acento-suave);border-color:var(--gris-claro)}
+  .hoy-btn{width:auto!important;padding:0 14px;font-size:13px!important;font-weight:600}
+
+  .dias-semana{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+  .dias-semana div{
+    text-align:center;font-size:11px;font-weight:600;color:var(--gris-claro);
+    text-transform:uppercase;letter-spacing:1px;padding:4px 0;
+  }
+
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+
+  .dia{
+    background:var(--panel);border:1px solid var(--linea);border-radius:10px;
+    min-height:94px;padding:5px;cursor:pointer;position:relative;
+    display:flex;flex-direction:column;gap:4px;transition:border-color .15s,background .15s;overflow:hidden;
+  }
+  .dia:hover{border-color:var(--gris-claro);background:#fbfaf8}
+  .dia.vacio{background:transparent;border:none;cursor:default}
+  .dia.vacio:hover{background:transparent}
+  .dia .num{font-size:12px;font-weight:600;color:var(--gris-claro);padding-left:2px}
+  .dia.hoy{border-color:var(--acento);box-shadow:inset 0 0 0 1px var(--acento)}
+  .dia.hoy .num{color:var(--acento)}
+  .dia.pasado{opacity:.6}
+
+  .evento{
+    flex:1;border-radius:7px;overflow:hidden;position:relative;
+    background:var(--acento-suave);border:1px solid var(--linea);
+    display:flex;flex-direction:column;justify-content:flex-end;padding:5px 6px;
+  }
+  .evento .thumb{
+    position:absolute;inset:0;background-size:cover;background-position:center;
+  }
+  .evento .thumb::after{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(to top,rgba(0,0,0,.7) 0%,rgba(0,0,0,.15) 60%,rgba(0,0,0,.05) 100%);
+  }
+  .evento .txt{position:relative;z-index:1;font-size:11px;line-height:1.3}
+  .evento .txt b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .evento .txt small{font-size:10px;color:var(--gris);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .evento.con-foto .txt{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .evento.con-foto .txt small{color:rgba(255,255,255,.85)}
+
+  .fondo{
+    position:fixed;inset:0;background:rgba(30,30,28,.5);
+    display:none;align-items:center;justify-content:center;padding:16px;z-index:50;
+  }
+  .fondo.abierto{display:flex}
+  .modal{
+    background:var(--panel);border-radius:14px;padding:22px;width:100%;max-width:440px;
+    box-shadow:0 24px 60px rgba(0,0,0,.28);max-height:92vh;overflow-y:auto;
+  }
+  .modal h3{font-size:18px;font-weight:600;margin-bottom:2px}
+  .modal .fecha-txt{color:var(--gris);font-size:13px;margin-bottom:16px}
+  label{display:block;font-size:11px;font-weight:600;color:var(--gris);
+    text-transform:uppercase;letter-spacing:.7px;margin:14px 0 5px}
+  input,textarea,select{
+    width:100%;border:1px solid var(--linea);border-radius:9px;padding:10px 12px;
+    font-size:14px;font-family:inherit;background:var(--panel);color:var(--texto);outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,textarea:focus,select:focus{border-color:var(--acento);box-shadow:0 0 0 3px rgba(87,86,79,.1)}
+  textarea{resize:vertical;min-height:64px}
+  .fila{display:flex;gap:10px}
+  .fila>div{flex:1}
+
+  /* --- foto --- */
+  .foto-zona{
+    border:1px dashed var(--gris-claro);border-radius:10px;background:#faf9f7;
+    min-height:150px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;overflow:hidden;text-align:center;padding:14px;
+    transition:border-color .15s,background .15s;
+  }
+  .foto-zona:hover{border-color:var(--acento);background:var(--acento-suave)}
+  .foto-zona .hint{color:var(--gris);font-size:13px;line-height:1.5}
+  .foto-zona .hint span{display:block;font-size:11px;color:var(--gris-claro);margin-top:3px}
+  .foto-zona img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+  .foto-zona.llena img{display:block}
+  .foto-zona.llena .hint{display:none}
+  .quitar-foto{
+    display:none;margin-top:8px;background:none;border:none;color:var(--gris);
+    font-size:12px;font-family:inherit;cursor:pointer;text-decoration:underline;padding:0;
+  }
+  .quitar-foto:hover{color:var(--texto)}
+  .quitar-foto.ver{display:inline-block}
+
+  .acciones{display:flex;gap:8px;margin-top:20px}
+  .btn{
+    flex:1;border:1px solid transparent;border-radius:9px;padding:11px;font-size:14px;font-weight:600;
+    cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s;
+  }
+  .btn-guardar{background:var(--acento);color:#fff}
+  .btn-guardar:hover{background:#3f3e39}
+  .btn-cancelar{background:var(--panel);color:var(--texto);border-color:var(--linea)}
+  .btn-cancelar:hover{background:var(--acento-suave)}
+  .btn-borrar{background:var(--panel);color:#9c4a3f;border-color:var(--linea);flex:0 0 auto;padding:11px 16px}
+  .btn-borrar:hover{background:#faf0ee;border-color:#e0c6c1}
+
+  .aviso{
+    background:#faf9f7;border:1px solid var(--linea);color:var(--gris);
+    border-radius:9px;padding:9px 12px;font-size:12.5px;margin-top:14px;display:none;
+  }
+  .aviso.ver{display:block}
+
+  footer{color:var(--gris-claro);font-size:12px;margin-top:36px;border-top:1px solid var(--linea);padding-top:16px}
+
+  /* ===== telefono ===== */
+  @media(max-width:640px){
+    body{
+      padding:calc(16px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+              calc(28px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    }
+
+    /* cabecera sobre panel translucido: se lee aunque la foto se vea detras */
+    header.top{
+      flex-direction:column;align-items:stretch;gap:10px;
+      margin-bottom:14px;padding:14px;border:none;border-radius:14px;
+      background:rgba(255,255,255,.82);
+      -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+      box-shadow:var(--sombra);
+    }
+    header.top h1{font-size:24px}
+    header.top p{font-size:13px;color:var(--gris)}
+    .fondo-btn{align-self:flex-start;padding:8px 14px}
+
+    .stats{gap:8px;margin:14px 0 16px}
+    .stat{flex:1 1 calc(50% - 4px);min-width:0;padding:10px 12px}
+    .stat b{font-size:18px}
+
+    .card{padding:12px 10px;border-radius:16px}
+    .nav{gap:6px;margin-bottom:12px}
+    .nav h2{font-size:16px}
+    .nav button{width:38px;height:38px}
+    .hoy-btn{height:38px;padding:0 13px}
+
+    .dias-semana{gap:4px}
+    .dias-semana div{font-size:10px;letter-spacing:.5px;padding:2px 0}
+    .grid{gap:4px}
+
+    /* celdas cuadradas: la foto llena el dia y el numero va encima */
+    .dia{
+      min-height:0;aspect-ratio:1/1;padding:4px;border-radius:9px;gap:0;
+      align-items:flex-start;
+    }
+    .dia .num{font-size:12px;position:relative;z-index:2;padding:0 0 0 1px}
+    .dia .evento{
+      position:absolute;inset:0;border:none;border-radius:9px;padding:0;
+      background:var(--acento);
+    }
+    .dia .evento .txt{display:none}
+    .dia .evento .thumb::after{
+      background:linear-gradient(to bottom,rgba(0,0,0,.55) 0%,rgba(0,0,0,.1) 55%,rgba(0,0,0,.3) 100%);
+    }
+    .dia.tiene .num{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+    .dia.hoy{box-shadow:inset 0 0 0 2px var(--acento)}
+
+    footer{
+      margin-top:20px;padding:10px 12px;border:none;border-radius:10px;
+      background:rgba(255,255,255,.78);
+      -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+      color:var(--gris);text-align:center;
+    }
+
+    /* el modal se vuelve una hoja que sube desde abajo */
+    .fondo{padding:0;align-items:flex-end}
+    .modal{
+      max-width:none;max-height:92vh;border-radius:20px 20px 0 0;
+      padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+      -webkit-overflow-scrolling:touch;
+      animation:subir .22s ease-out;
+    }
+    .modal::before{
+      content:'';display:block;width:38px;height:4px;border-radius:2px;
+      background:var(--linea);margin:0 auto 14px;
+    }
+    @keyframes subir{from{transform:translateY(26px)}to{transform:none}}
+
+    /* 16px evita que iOS haga zoom al enfocar un campo */
+    input,textarea,select{font-size:16px;padding:12px 13px}
+    label{margin:13px 0 5px}
+    .foto-zona{min-height:170px}
+    .quitar-foto{padding:6px 0;font-size:13px}
+
+    .acciones{
+      position:sticky;bottom:0;background:var(--panel);
+      margin-top:18px;padding:12px 0 2px;border-top:1px solid var(--linea);
+    }
+    .btn{padding:14px 12px;border-radius:11px}
+  }
+
+  @media(max-width:360px){
+    .dia{padding:3px}
+    .dia .num{font-size:11px}
+    .stat span{font-size:10px}
+  }
+
+  /* en pantallas tactiles el :hover se queda pegado despues de tocar */
+  @media(hover:none){
+    .dia:hover{border-color:var(--linea);background:var(--panel)}
+    .nav button:hover{background:var(--panel);border-color:var(--linea)}
+    .fondo-btn:hover{background:var(--panel);border-color:var(--linea);color:var(--gris)}
+    .fondo-btn.activo:hover{background:var(--acento);border-color:var(--acento);color:#fff}
+    .foto-zona:hover{border-color:var(--gris-claro);background:#faf9f7}
+  }
+</style>
+</head>
+<body>
+<div class="collage" id="collage" aria-hidden="true"></div>
+<div class="velo" id="velo" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="tit">
+      <h1>Calendario de salidas</h1>
+      <p>Una salida por d&iacute;a. Toca un d&iacute;a para agendarla o editarla.</p>
+      <span class="estado" id="estado">Cargando&hellip;</span>
+    </div>
+    <button class="fondo-btn" id="fondoBtn" type="button">Fondo con fotos</button>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b id="stTotal">0</b><span>Salidas</span></div>
+    <div class="stat"><b id="stMes">0</b><span>Este mes</span></div>
+    <div class="stat"><b id="stProx">&mdash;</b><span>Pr&oacute;xima</span></div>
+    <div class="stat"><b id="stFotos">0</b><span>Fotos</span></div>
+  </div>
+
+  <div class="card">
+    <div class="nav">
+      <h2 id="titulo">Mes</h2>
+      <button class="hoy-btn" id="hoyBtn">Hoy</button>
+      <button id="prev" title="Mes anterior">&lsaquo;</button>
+      <button id="next" title="Mes siguiente">&rsaquo;</button>
+    </div>
+
+    <div class="dias-semana">
+      <div>Lun</div><div>Mar</div><div>Mi&eacute;</div><div>Jue</div><div>Vie</div><div>S&aacute;b</div><div>Dom</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <footer>Los datos y las fotos se guardan solo en este navegador.</footer>
+</div>
+
+<div class="fondo" id="fondo">
+  <div class="modal">
+    <h3 id="mTitulo">Nueva salida</h3>
+    <div class="fecha-txt" id="mFecha"></div>
+
+    <label for="fTitulo">Plan</label>
+    <input id="fTitulo" type="text" placeholder="Ej: Cine y cena" maxlength="60">
+
+    <div class="fila">
+      <div>
+        <label for="fHora">Hora</label>
+        <input id="fHora" type="time">
+      </div>
+      <div>
+        <label for="fTipo">Tipo</label>
+        <select id="fTipo">
+          <option>Comer</option>
+          <option>Cine</option>
+          <option>Paseo</option>
+          <option>Evento</option>
+          <option>Viaje</option>
+          <option>En casa</option>
+          <option>Otro</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="fLugar">Lugar</label>
+    <input id="fLugar" type="text" placeholder="Ej: Centro comercial" maxlength="60">
+
+    <label>Foto</label>
+    <div class="foto-zona" id="fotoZona">
+      <div class="hint">
+        Toca para elegir una foto
+        <span>Galer&iacute;a o c&aacute;mara del tel&eacute;fono</span>
+      </div>
+      <img id="fotoPrev" alt="">
+    </div>
+    <input type="file" id="fFoto" accept="image/*" style="display:none">
+    <button type="button" class="quitar-foto" id="quitarFoto">Quitar foto</button>
+
+    <label for="fNota">Nota</label>
+    <textarea id="fNota" placeholder="Detalles, reserva, presupuesto..." maxlength="300"></textarea>
+
+    <div class="aviso" id="aviso">Ya hay una salida ese d&iacute;a. Puedes editarla o borrarla.</div>
+
+    <div class="acciones">
+      <button class="btn btn-cancelar" id="btnCancelar">Cancelar</button>
+      <button class="btn btn-borrar" id="btnBorrar" style="display:none">Borrar</button>
+      <button class="btn btn-guardar" id="btnGuardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var CLAVE = 'salidas_calendario';
+  var CLAVE_FONDO = 'salidas_fondo_collage';
+  var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var MES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var DIAS = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
+  // fotos fijas del fondo (carpeta /fotos)
+  var FOTOS_BASE = ['fotos/01.webp','fotos/02.webp','fotos/03.webp','fotos/04.webp',
+                    'fotos/05.webp','fotos/06.webp','fotos/07.webp'];
+
+  var salidas = {};
+  var API = 'api.php';  // los archivos PHP viven junto a esta pagina
+  var enNube = false;   // true = guardamos en la base de datos compartida
+  var tempoSync = null;
+  var hoy = new Date();
+  var verAnio = hoy.getFullYear();
+  var verMes = hoy.getMonth();
+  var fechaSel = null;
+  var fotoActual = '';
+  var collageOn = localStorage.getItem(CLAVE_FONDO) !== 'no';
+  var tempoResize = null;
+
+  function $(id){ return document.getElementById(id); }
+
+  /* ================== ALMACENAMIENTO ==================
+     Todo se guarda en MySQL a traves de api.php, y las fotos como archivos
+     en uploads/. Si el servidor no responde, se usa este navegador como
+     respaldo para no perder lo que escribas. */
+
+  function cargarLocal(){
+    try {
+      var d = JSON.parse(localStorage.getItem(CLAVE));
+      if(d && Object.keys(d).length) return d;
+      // datos de la version anterior
+      return JSON.parse(localStorage.getItem('salidas_enamorada')) || d || {};
+    } catch(e){ return {}; }
+  }
+  function guardarLocal(){
+    try {
+      localStorage.setItem(CLAVE, JSON.stringify(salidas));
+      return true;
+    } catch(e){
+      alert('No hay espacio en este navegador. Quita alguna foto e intenta de nuevo.');
+      return false;
+    }
+  }
+
+  function estado(txt, clase){
+    var e = $('estado');
+    e.textContent = txt;
+    e.className = 'estado' + (clase ? ' ' + clase : '');
+  }
+
+  function filasASalidas(filas){
+    var o = {};
+    (filas || []).forEach(function(f){
+      o[f.fecha] = {
+        titulo: f.titulo || '',
+        hora:   f.hora   || '',
+        tipo:   f.tipo   || '',
+        lugar:  f.lugar  || '',
+        nota:   f.nota   || '',
+        foto:   f.foto   || ''
+      };
+    });
+    return o;
+  }
+
+  // pide la lista completa al servidor
+  function recargar(primera){
+    fetch(API + '?accion=listar', {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(!j.ok) throw new Error(j.error || 'error');
+        enNube = true;
+        salidas = filasASalidas(j.datos);
+        estado('Sincronizado', 'nube');
+        pintar();
+      })
+      ['catch'](function(e){
+        console.error(e);
+        if(primera){
+          enNube = false;
+          salidas = cargarLocal();
+          estado('Solo en este dispositivo', '');
+          pintar();
+        } else {
+          estado('Sin conexion con el servidor', 'malo');
+        }
+      });
+  }
+
+  function iniciar(){
+    salidas = cargarLocal();
+    pintar();
+    estado('Conectando...', '');
+    recargar(true);
+
+    // si ella agenda algo, aparece al volver a la pagina
+    document.addEventListener('visibilitychange', function(){
+      if(!document.hidden && enNube) recargar();
+    });
+    tempoSync = setInterval(function(){
+      if(!document.hidden && enNube) recargar();
+    }, 60000);
+  }
+
+  function dataUrlABlob(d){
+    var partes = d.split(',');
+    var bin = atob(partes[1]);
+    var arr = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], {type:'image/jpeg'});
+  }
+
+  function ocupado(si, texto){
+    $('btnGuardar').disabled = si;
+    $('btnBorrar').disabled = si;
+    $('btnGuardar').textContent = si ? (texto || 'Guardando...') : 'Guardar';
+  }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function clave(a, m, d){ return a + '-' + pad(m + 1) + '-' + pad(d); }
+  function hoyClave(){
+    var n = new Date();
+    return clave(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+  function resumen(ev){
+    return [ev.hora, ev.lugar].filter(Boolean).join(' · ');
+  }
+
+  function pintar(){
+    $('titulo').textContent = MESES[verMes] + ' ' + verAnio;
+    var grid = $('grid');
+    grid.innerHTML = '';
+
+    var primero = new Date(verAnio, verMes, 1);
+    var offset = (primero.getDay() + 6) % 7;          // lunes = 0
+    var totalDias = new Date(verAnio, verMes + 1, 0).getDate();
+    var hk = hoyClave();
+    var i, d;
+
+    for(i = 0; i < offset; i++){
+      var v = document.createElement('div');
+      v.className = 'dia vacio';
+      grid.appendChild(v);
+    }
+
+    for(d = 1; d <= totalDias; d++){
+      var k = clave(verAnio, verMes, d);
+      var cel = document.createElement('div');
+      cel.className = 'dia';
+      if(k === hk) cel.className += ' hoy';
+      else if(k < hk) cel.className += ' pasado';
+
+      var num = document.createElement('div');
+      num.className = 'num';
+      num.textContent = d;
+      cel.appendChild(num);
+
+      var ev = salidas[k];
+      if(ev){
+        var caja = document.createElement('div');
+        cel.className += ' tiene';
+        caja.className = 'evento' + (ev.foto ? ' con-foto' : '');
+
+        if(ev.foto){
+          var th = document.createElement('div');
+          th.className = 'thumb';
+          th.style.backgroundImage = 'url(' + ev.foto + ')';
+          caja.appendChild(th);
+        }
+
+        var txt = document.createElement('div');
+        txt.className = 'txt';
+        var b = document.createElement('b');
+        b.textContent = ev.titulo;
+        txt.appendChild(b);
+        var det = resumen(ev);
+        if(det){
+          var s = document.createElement('small');
+          s.textContent = det;
+          txt.appendChild(s);
+        }
+        caja.appendChild(txt);
+        cel.appendChild(caja);
+      }
+
+      (function(kk){
+        cel.addEventListener('click', function(){ abrir(kk); });
+      })(k);
+
+      grid.appendChild(cel);
+    }
+
+    pintarStats();
+    pintarCollage();
+  }
+
+  function todasLasFotos(){
+    var propias = Object.keys(salidas).sort().map(function(k){ return salidas[k].foto; }).filter(Boolean);
+    return FOTOS_BASE.concat(propias);
+  }
+
+  // mosaico de fotos que cubre la pantalla, detras de todo
+  function pintarCollage(){
+    var cont = $('collage'), velo = $('velo');
+    cont.innerHTML = '';
+    var fotos = todasLasFotos();
+
+    $('fondoBtn').className = 'fondo-btn' + (collageOn && fotos.length ? ' activo' : '');
+    $('fondoBtn').textContent = collageOn ? 'Fondo con fotos' : 'Fondo liso';
+
+    if(!collageOn || !fotos.length){
+      cont.style.display = 'none';
+      velo.style.display = 'none';
+      return;
+    }
+
+    var lado = window.innerWidth < 640 ? 150 : 170;
+    var cols = Math.ceil(window.innerWidth / lado) + 1;
+    var filas = Math.ceil(window.innerHeight / lado) + 1;
+
+    cont.style.display = 'grid';
+    cont.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+    cont.style.gridAutoRows = lado + 'px';
+    velo.style.display = 'block';
+
+    var total = cols * filas;
+    for(var i = 0; i < total; i++){
+      var t = document.createElement('div');
+      // desfase por fila para que no se repita la misma foto en columna
+      var idx = (i + Math.floor(i / cols) * 3) % fotos.length;
+      t.style.backgroundImage = 'url(' + fotos[idx] + ')';
+      if(fotos.length > 2 && i % 5 === 2) t.className = 'grande';
+      cont.appendChild(t);
+    }
+  }
+
+  function pintarStats(){
+    var claves = Object.keys(salidas).sort();
+    $('stTotal').textContent = claves.length;
+
+    var pref = verAnio + '-' + pad(verMes + 1);
+    $('stMes').textContent = claves.filter(function(k){ return k.indexOf(pref) === 0; }).length;
+    $('stFotos').textContent = claves.filter(function(k){ return !!salidas[k].foto; }).length;
+
+    var hk = hoyClave();
+    var prox = claves.filter(function(k){ return k >= hk; })[0];
+    if(prox){
+      var p = prox.split('-');
+      $('stProx').textContent = Number(p[2]) + ' ' + MES_CORTO[Number(p[1]) - 1];
+    } else {
+      $('stProx').textContent = '—';
+    }
+  }
+
+  function textoFecha(k){
+    var p = k.split('-');
+    var f = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    return DIAS[f.getDay()] + ', ' + Number(p[2]) + ' de ' + MESES[Number(p[1]) - 1] + ' de ' + p[0];
+  }
+
+  function verFoto(src){
+    fotoActual = src || '';
+    var zona = $('fotoZona');
+    if(fotoActual){
+      $('fotoPrev').src = fotoActual;
+      zona.className = 'foto-zona llena';
+      $('quitarFoto').className = 'quitar-foto ver';
+    } else {
+      $('fotoPrev').removeAttribute('src');
+      zona.className = 'foto-zona';
+      $('quitarFoto').className = 'quitar-foto';
+    }
+  }
+
+  // reduce la imagen antes de guardarla, para que quepa en el navegador
+  function reducir(fuente, ancho, alto, cb){
+    var max = 900, w = ancho, h = alto;
+    if(w > h && w > max){ h = Math.round(h * max / w); w = max; }
+    else if(h >= w && h > max){ w = Math.round(w * max / h); h = max; }
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);            // por si la foto trae transparencia
+    ctx.drawImage(fuente, 0, 0, w, h);
+    if(fuente.close) fuente.close();      // libera memoria en el telefono
+    cb(c.toDataURL('image/jpeg', 0.72));
+  }
+
+  function comprimir(file, cb){
+    // createImageBitmap respeta la rotacion EXIF de las fotos de telefono
+    if(window.createImageBitmap){
+      var intento;
+      try { intento = createImageBitmap(file, {imageOrientation:'from-image'}); }
+      catch(e){ intento = null; }
+      if(intento && intento.then){
+        intento.then(function(bmp){
+          reducir(bmp, bmp.width, bmp.height, cb);
+        })['catch'](function(){ porFileReader(file, cb); });
+        return;
+      }
+    }
+    porFileReader(file, cb);
+  }
+
+  function porFileReader(file, cb){
+    var lector = new FileReader();
+    lector.onload = function(){
+      var img = new Image();
+      img.onload = function(){ reducir(img, img.width, img.height, cb); };
+      img.onerror = function(){
+        alert('No se pudo leer esa imagen. Si es HEIC del iPhone, guardala como JPG e intenta otra vez.');
+      };
+      img.src = lector.result;
+    };
+    lector.onerror = function(){ alert('No se pudo leer el archivo.'); };
+    lector.readAsDataURL(file);
+  }
+
+  function abrir(k){
+    fechaSel = k;
+    var ev = salidas[k];
+    $('mFecha').textContent = textoFecha(k);
+    $('mTitulo').textContent = ev ? 'Editar salida' : 'Nueva salida';
+    $('aviso').className = ev ? 'aviso ver' : 'aviso';
+    $('btnBorrar').style.display = ev ? 'block' : 'none';
+
+    $('fTitulo').value = ev ? ev.titulo : '';
+    $('fHora').value   = ev ? (ev.hora || '') : '';
+    $('fTipo').value   = (ev && ev.tipo) ? ev.tipo : $('fTipo').options[0].value;
+    $('fLugar').value  = ev ? (ev.lugar || '') : '';
+    $('fNota').value   = ev ? (ev.nota || '') : '';
+    verFoto(ev ? ev.foto : '');
+
+    $('fondo').className = 'fondo abierto';
+    setTimeout(function(){ $('fTitulo').focus(); }, 60);
+  }
+
+  function cerrar(){
+    $('fondo').className = 'fondo';
+    fechaSel = null;
+    fotoActual = '';
+    $('fFoto').value = '';
+  }
+
+  $('fotoZona').addEventListener('click', function(){ $('fFoto').click(); });
+  $('fFoto').addEventListener('change', function(){
+    var f = this.files && this.files[0];
+    if(!f) return;
+    if(f.size > 30 * 1024 * 1024){ alert('Esa imagen es muy pesada (max 30 MB).'); this.value = ''; return; }
+    comprimir(f, function(dataUrl){ verFoto(dataUrl); });
+    this.value = '';
+  });
+  $('quitarFoto').addEventListener('click', function(){ verFoto(''); });
+
+  $('btnGuardar').addEventListener('click', function(){
+    var t = $('fTitulo').value.replace(/^\s+|\s+$/g, '');
+    if(!t){ alert('Escribe que van a hacer.'); $('fTitulo').focus(); return; }
+
+    var fecha = fechaSel;
+    var datos = {
+      titulo: t,
+      hora:  $('fHora').value,
+      tipo:  $('fTipo').value,
+      lugar: $('fLugar').value.replace(/^\s+|\s+$/g, ''),
+      nota:  $('fNota').value.replace(/^\s+|\s+$/g, ''),
+      foto:  fotoActual
+    };
+
+    if(!enNube){
+      var previo = salidas[fecha];
+      salidas[fecha] = datos;
+      if(!guardarLocal()){
+        if(previo) salidas[fecha] = previo; else delete salidas[fecha];
+        return;
+      }
+      cerrar(); pintar();
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append('accion', 'guardar');
+    fd.append('fecha',  fecha);
+    fd.append('titulo', datos.titulo);
+    fd.append('hora',   datos.hora);
+    fd.append('tipo',   datos.tipo);
+    fd.append('lugar',  datos.lugar);
+    fd.append('nota',   datos.nota);
+
+    var hayFotoNueva = fotoActual && fotoActual.indexOf('data:') === 0;
+    if(hayFotoNueva){
+      fd.append('archivo', dataUrlABlob(fotoActual), fecha + '.jpg');
+      fd.append('foto', '');
+    } else {
+      fd.append('foto', fotoActual || '');   // la que ya tenia, o vacio si la quitaron
+    }
+
+    ocupado(true, hayFotoNueva ? 'Subiendo foto...' : 'Guardando...');
+    fetch(API, {method:'POST', body:fd})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        ocupado(false);
+        if(!j.ok){ alert('No se pudo guardar: ' + (j.error || '')); return; }
+        datos.foto = j.foto || '';
+        salidas[fecha] = datos;
+        cerrar(); pintar();
+      })
+      ['catch'](function(e){
+        ocupado(false);
+        alert('No se pudo conectar con el servidor.');
+        console.error(e);
+      });
+  });
+
+  $('btnBorrar').addEventListener('click', function(){
+    if(!confirm('Borrar esta salida?')) return;
+    var fecha = fechaSel;
+
+    if(!enNube){
+      delete salidas[fecha];
+      guardarLocal(); cerrar(); pintar();
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append('accion', 'borrar');
+    fd.append('fecha',  fecha);
+
+    ocupado(true, 'Borrando...');
+    fetch(API, {method:'POST', body:fd})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        ocupado(false);
+        if(!j.ok){ alert('No se pudo borrar: ' + (j.error || '')); return; }
+        delete salidas[fecha];
+        cerrar(); pintar();
+      })
+      ['catch'](function(e){
+        ocupado(false);
+        alert('No se pudo conectar con el servidor.');
+        console.error(e);
+      });
+  });
+
+  $('btnCancelar').addEventListener('click', cerrar);
+  $('fondo').addEventListener('click', function(e){
+    if(e.target === $('fondo')) cerrar();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && $('fondo').className.indexOf('abierto') > -1) cerrar();
+  });
+
+  $('prev').addEventListener('click', function(){
+    verMes--; if(verMes < 0){ verMes = 11; verAnio--; } pintar();
+  });
+  $('next').addEventListener('click', function(){
+    verMes++; if(verMes > 11){ verMes = 0; verAnio++; } pintar();
+  });
+  // deslizar de lado sobre el calendario para cambiar de mes
+  (function(){
+    var x0 = null, y0 = null;
+    var g = $('grid');
+    g.addEventListener('touchstart', function(e){
+      if(e.touches.length !== 1){ x0 = null; return; }
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+    }, {passive:true});
+    g.addEventListener('touchend', function(e){
+      if(x0 === null) return;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - x0, dy = t.clientY - y0;
+      x0 = null;
+      if(Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      if(dx < 0){ verMes++; if(verMes > 11){ verMes = 0; verAnio++; } }
+      else { verMes--; if(verMes < 0){ verMes = 11; verAnio--; } }
+      pintar();
+    }, {passive:true});
+  })();
+
+  $('hoyBtn').addEventListener('click', function(){
+    var n = new Date(); verAnio = n.getFullYear(); verMes = n.getMonth(); pintar();
+  });
+
+  $('fondoBtn').addEventListener('click', function(){
+    collageOn = !collageOn;
+    try { localStorage.setItem(CLAVE_FONDO, collageOn ? 'si' : 'no'); } catch(e){}
+    pintarCollage();
+  });
+
+  window.addEventListener('resize', function(){
+    clearTimeout(tempoResize);
+    tempoResize = setTimeout(pintarCollage, 180);
+  });
+
+  iniciar();
+})();
+</script>
+</body>
+</html>
