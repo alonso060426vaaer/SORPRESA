@@ -130,8 +130,11 @@
     <label for="url">Direcci&oacute;n del calendario</label>
     <input id="url" type="url" placeholder="https://tusitio.com/calendario/" spellcheck="false">
     <div class="sugerencias">
+      <button type="button" class="chip" data-url="https://sorpresa-6cxn.vercel.app/index.html">
+        Usar la direcci&oacute;n publicada (abre desde cualquier lugar)
+      </button>
       <button type="button" class="chip" data-url="http://192.168.99.171/CALENDARIO/index.html">
-        Usar la IP de esta PC (192.168.99.171)
+        Usar la IP de esta PC (solo dentro de tu WiFi)
       </button>
       <a class="chip" id="probar" href="#" target="_blank" rel="noopener">Probar el enlace</a>
     </div>
@@ -188,14 +191,16 @@
 (function(){
   function $(id){ return document.getElementById(id); }
 
-  var IP_LAN = 'http://192.168.99.171/CALENDARIO/index.html';
+  var URL_PUBLICA = 'https://sorpresa-6cxn.vercel.app/index.html';
+  var IP_LAN      = 'http://192.168.99.171/CALENDARIO/index.html';
 
   // direccion por defecto: la carpeta donde vive esta pagina.
-  // si estas viendo el archivo local, no sirve para un celular: usamos la IP de la red.
+  // si estas viendo la copia local (file:// o localhost), esa direccion no le sirve a un
+  // celular: usamos la del sitio publicado, que abre desde cualquier red y no solo del WiFi.
   function urlPorDefecto(){
     if(/^file:/i.test(location.href) ||
        /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(location.href)){
-      return IP_LAN;
+      return URL_PUBLICA;
     }
     return location.href.replace(/qr\.html.*$/i, '') + 'index.html';
   }
@@ -211,13 +216,11 @@
   function direccionMuerta(u){
     if(/^file:/i.test(u)){
       return 'Esa es la ruta de un archivo en tu disco (<b>file://</b>). Un celular no puede abrirla. ' +
-             'Abre el calendario desde el navegador con <b>http://localhost/CALENDARIO/</b> y usa el ' +
-             'bot&oacute;n de la IP de arriba, o publica el sitio en un hosting.';
+             'Toca el bot&oacute;n <b>Usar la direcci&oacute;n publicada</b> de arriba.';
     }
     if(/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(u)){
       return '<b>localhost</b> significa "esta misma computadora", por eso tu iPhone no lo abre. ' +
-             'Toca el bot&oacute;n <b>Usar la IP de esta PC</b> de arriba, o publica el calendario en un ' +
-             'hosting y pega ah&iacute; esa direcci&oacute;n.';
+             'Toca el bot&oacute;n <b>Usar la direcci&oacute;n publicada</b> de arriba.';
     }
     return '';
   }
