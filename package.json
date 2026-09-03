@@ -2,12 +2,11 @@
   "name": "calendario-salidas",
   "version": "1.0.0",
   "private": true,
-  "description": "Calendario de salidas - frontend estatico + API serverless en Vercel contra MySQL (Aiven)",
+  "description": "Calendario de salidas - frontend estatico + API serverless en Vercel contra MySQL (Aiven), fotos en la propia base",
   "scripts": {
     "dev": "vercel dev"
   },
   "dependencies": {
-    "cloudinary": "^2.5.1",
     "mysql2": "^3.11.5"
   },
   "engines": {

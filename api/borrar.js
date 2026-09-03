@@ -1,14 +1,13 @@
 /* =========================================================================
    POST /api/borrar
-   Elimina una salida de MySQL (Aiven) y, si tenia foto, la borra tambien de
-   Cloudinary para no dejar archivos huerfanos ocupando el plan gratis.
+   Elimina una salida de MySQL (Aiven). La foto vive dentro de la misma fila,
+   asi que se borra con ella y no queda nada suelto.
 
    Cuerpo esperado (JSON):  { "fecha": "2026-10-08" }
    Respuesta:               { "ok": true, "borradas": 1 }
    ========================================================================= */
 
 const { obtenerPool, explicarError, faltaConfiguracion } = require('../lib/db');
-const nube = require('../lib/cloudinary');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -39,18 +38,9 @@ module.exports = async function handler(req, res) {
   try {
     const pool = obtenerPool();
 
-    const [filas] = await pool.query('SELECT foto FROM salidas WHERE fecha = ?', [fecha]);
-    if (!filas.length) {
-      // no estaba: para el calendario el resultado es el mismo
-      return res.status(200).json({ ok: true, borradas: 0 });
-    }
-
-    const foto = filas[0].foto || '';
     const [resultado] = await pool.query('DELETE FROM salidas WHERE fecha = ?', [fecha]);
 
-    // primero la fila, luego la imagen: si esto falla, la salida ya no existe
-    if (foto) await nube.borrar(foto);
-
+    // si no estaba, para el calendario el resultado es el mismo
     return res.status(200).json({ ok: true, borradas: resultado.affectedRows });
 
   } catch (error) {

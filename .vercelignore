@@ -7,3 +7,7 @@ uploads/
 
 # node_modules lo instala Vercel por su cuenta
 node_modules/
+
+# solo para crear la tabla a mano, no hace falta publicarlo
+aiven-tabla.sql
+crear-tabla.js

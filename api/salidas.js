@@ -1,46 +1,17 @@
 /* =========================================================================
    GET /api/salidas
-   Serverless Function de Vercel (Node.js) que consulta la tabla `salidas`
-   en MySQL de Aiven y la devuelve como JSON.
+   Devuelve todas las salidas de la tabla `salidas` en MySQL (Aiven).
 
-   Variables de entorno (Vercel -> Settings -> Environment Variables):
-     AIVEN_HOST, AIVEN_PORT, AIVEN_USER, AIVEN_PASSWORD, AIVEN_DB
-   Solo AIVEN_PASSWORD es imprescindible: las otras cuatro tienen como
-   respaldo los valores de tu proyecto, por si alguna no quedo cargada.
+   Ojo con la columna `foto`: dentro guarda la imagen entera, y mandarla en
+   esta lista haria la respuesta pesadisima. Por eso aqui no va la imagen
+   sino su direccion, /api/foto?fecha=...&v=..., y el navegador se la pide
+   solo cuando la necesita (y la deja en cache).
 
    Respuesta:
      { "ok": true, "datos": [ { fecha, titulo, hora, tipo, lugar, nota, foto } ] }
    ========================================================================= */
 
-const mysql = require('mysql2/promise');
-
-// El pool se guarda fuera del handler: mientras Vercel mantenga "caliente"
-// la funcion, las siguientes llamadas reaprovechan la conexion en vez de
-// abrir una nueva cada vez (Aiven limita las conexiones simultaneas).
-let pool;
-
-function obtenerPool() {
-  if (!pool) {
-    pool = mysql.createPool({
-      host:     process.env.AIVEN_HOST || 'mysql-2acfd6e9-kelvincampana06-e3b0.h.aivencloud.com',
-      port:     Number(process.env.AIVEN_PORT || 26500),
-      user:     process.env.AIVEN_USER || 'avnadmin',
-      password: process.env.AIVEN_PASSWORD,
-      database: process.env.AIVEN_DB || process.env.AIVEN_DATABASE || 'defaultdb',
-
-      // Aiven exige TLS. Lo ideal es validar con su certificado CA, pero
-      // aqui va como lo pediste.
-      ssl: { rejectUnauthorized: false },
-
-      waitForConnections: true,
-      connectionLimit: 3,
-      queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
-    });
-  }
-  return pool;
-}
+const { obtenerPool, explicarError, faltaConfiguracion } = require('../lib/db');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -55,12 +26,8 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Metodo no permitido' });
   }
 
-  if (!process.env.AIVEN_PASSWORD) {
-    return res.status(500).json({
-      ok: false,
-      error: 'Falta la variable de entorno AIVEN_PASSWORD en Vercel'
-    });
-  }
+  const falta = faltaConfiguracion();
+  if (falta) return res.status(500).json({ ok: false, error: falta });
 
   try {
     // DATE_FORMAT devuelve la fecha como texto 'YYYY-MM-DD'. Sin esto el
@@ -68,7 +35,13 @@ module.exports = async function handler(req, res) {
     // correrse un dia por la zona horaria.
     const [filas] = await obtenerPool().query(
       `SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS fecha,
-              titulo, hora, tipo, lugar, nota, foto
+              titulo, hora, tipo, lugar, nota,
+              CASE
+                WHEN foto IS NULL OR foto = '' THEN ''
+                WHEN foto LIKE 'http%'         THEN foto
+                ELSE CONCAT('/api/foto?fecha=', DATE_FORMAT(fecha, '%Y-%m-%d'),
+                            '&v=', UNIX_TIMESTAMP(actualizado))
+              END AS foto
        FROM salidas
        ORDER BY fecha`
     );
@@ -77,13 +50,9 @@ module.exports = async function handler(req, res) {
 
   } catch (error) {
     console.error('Error consultando salidas:', error);
-
-    // Errores tipicos, para no adivinar desde el navegador
-    let detalle = 'No se pudo consultar la base de datos';
-    if (error.code === 'ER_NO_SUCH_TABLE')      detalle = 'La tabla `salidas` no existe en defaultdb';
-    if (error.code === 'ER_ACCESS_DENIED_ERROR') detalle = 'Usuario o contrasena incorrectos';
-    if (error.code === 'ETIMEDOUT')              detalle = 'La base de datos no responde (revisa host y puerto)';
-
-    return res.status(500).json({ ok: false, error: detalle });
+    return res.status(500).json({
+      ok: false,
+      error: explicarError(error) || 'No se pudo consultar la base de datos'
+    });
   }
 };

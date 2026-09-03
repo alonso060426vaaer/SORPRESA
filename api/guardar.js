@@ -1,7 +1,9 @@
 /* =========================================================================
    POST /api/guardar
-   Crea o edita una salida en MySQL (Aiven). Si llega una foto nueva, primero
-   la sube a Cloudinary y guarda la URL definitiva en la columna `foto`.
+   Crea o edita una salida en MySQL (Aiven). La foto se guarda dentro de la
+   misma base de datos, en la columna `foto`, tal cual llega del navegador
+   (data URL). El navegador ya la reduce a 900px y JPEG al 72%, asi que pesa
+   unos 150 KB: cabe de sobra y nos ahorra depender de un servicio externo.
 
    Cuerpo esperado (JSON):
      {
@@ -13,17 +15,22 @@
        "nota":   "...",
        "foto":   ""                         una de estas tres:
                                             - "data:image/jpeg;base64,..."  foto nueva
-                                            - "https://res.cloudinary..."   la que ya tenia
+                                            - "/api/foto?fecha=..."         deja la que ya tenia
                                             - ""                            sin foto / la quitaron
      }
 
-   Respuesta: { "ok": true, "foto": "https://res.cloudinary.com/..." }
+   Respuesta: { "ok": true, "foto": "/api/foto?fecha=2026-10-08&v=1756..." }
    ========================================================================= */
 
 const { obtenerPool, explicarError, faltaConfiguracion } = require('../lib/db');
-const nube = require('../lib/cloudinary');
 
 const LARGOS = { titulo: 120, hora: 10, tipo: 40, lugar: 120, nota: 500 };
+
+// Vercel corta las peticiones de mas de 4,5 MB, y una imagen en base64 ocupa
+// un tercio mas que el archivo. Cortamos antes para dar un mensaje claro.
+const MAX_FOTO = 3500000;
+
+const DATA_URL = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+$/i;
 
 function texto(valor, largo) {
   if (typeof valor !== 'string') return '';
@@ -69,36 +76,31 @@ module.exports = async function handler(req, res) {
   const tipo  = texto(datos.tipo,  LARGOS.tipo);
   const lugar = texto(datos.lugar, LARGOS.lugar);
   const nota  = texto(datos.nota,  LARGOS.nota);
-  const fotoEntrante = typeof datos.foto === 'string' ? datos.foto : '';
+
+  const fotoEntrante = typeof datos.foto === 'string' ? datos.foto.trim() : '';
+  const esFotoNueva  = fotoEntrante.startsWith('data:');
+
+  if (esFotoNueva) {
+    if (!DATA_URL.test(fotoEntrante)) {
+      return res.status(400).json({ ok: false, error: 'El archivo no es una imagen' });
+    }
+    if (fotoEntrante.length > MAX_FOTO) {
+      return res.status(413).json({ ok: false, error: 'La foto pesa demasiado, intenta con otra' });
+    }
+  }
 
   try {
     const pool = obtenerPool();
 
-    // que foto tenia antes, para poder reemplazarla o borrarla de Cloudinary
-    const [previas] = await pool.query('SELECT foto FROM salidas WHERE fecha = ?', [fecha]);
-    const fotoAnterior = previas.length ? (previas[0].foto || '') : '';
-
-    let foto = fotoEntrante;
-
-    if (fotoEntrante.startsWith('data:')) {
-      // foto nueva: va a Cloudinary
-      if (!nube.configurado()) {
-        return res.status(500).json({
-          ok: false,
-          error: 'Faltan las variables CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET en Vercel'
-        });
-      }
-      foto = await nube.subir(fotoEntrante, fecha);
-      if (fotoAnterior && fotoAnterior !== foto) await nube.borrar(fotoAnterior);
-
-    } else if (!fotoEntrante && fotoAnterior) {
-      // la quitaron
-      await nube.borrar(fotoAnterior);
-      foto = '';
-    }
-
-    if (foto.length > 255) {
-      return res.status(400).json({ ok: false, error: 'La URL de la foto es demasiado larga' });
+    let foto;
+    if (esFotoNueva) {
+      foto = fotoEntrante;                 // la nueva reemplaza a la anterior
+    } else if (!fotoEntrante) {
+      foto = '';                           // la quitaron
+    } else {
+      // llego la direccion de la que ya tenia: no la tocamos
+      const [previas] = await pool.query('SELECT foto FROM salidas WHERE fecha = ?', [fecha]);
+      foto = previas.length ? (previas[0].foto || '') : '';
     }
 
     await pool.query(
@@ -111,10 +113,27 @@ module.exports = async function handler(req, res) {
       [fecha, titulo, hora, tipo, lugar, nota, foto]
     );
 
-    return res.status(200).json({ ok: true, foto: foto });
+    // devolvemos la direccion de la foto, no la foto: es lo que el calendario
+    // pone en el <img>, y el ?v= hace que se vea la nueva y no la de antes
+    let direccion = '';
+    if (foto) {
+      const [marca] = await pool.query(
+        'SELECT UNIX_TIMESTAMP(actualizado) AS v FROM salidas WHERE fecha = ?', [fecha]
+      );
+      const v = marca.length ? marca[0].v : Math.floor(Date.now() / 1000);
+      direccion = '/api/foto?fecha=' + fecha + '&v=' + v;
+    }
+
+    return res.status(200).json({ ok: true, foto: direccion });
 
   } catch (error) {
     console.error('Error guardando salida:', error);
+    if (error.code === 'ER_DATA_TOO_LONG') {
+      return res.status(500).json({
+        ok: false,
+        error: 'La columna `foto` todavia es corta: vuelve a correr crear-tabla.js'
+      });
+    }
     return res.status(500).json({
       ok: false,
       error: explicarError(error) || error.message || 'No se pudo guardar'
