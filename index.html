@@ -60,10 +60,6 @@
   @media(max-width:1100px){
     .velo{background:linear-gradient(160deg,rgba(244,243,241,.5) 0%,rgba(244,243,241,.58) 100%)}
   }
-  @media(max-width:640px){
-    .velo{background:transparent}
-  }
-
   header.top{
     margin-bottom:20px;border-bottom:1px solid var(--linea);padding-bottom:18px;
     display:flex;align-items:flex-start;gap:14px;
@@ -215,74 +211,119 @@
 
   footer{color:var(--gris-claro);font-size:12px;margin-top:36px;border-top:1px solid var(--linea);padding-top:16px}
 
-  /* ===== telefono ===== */
+  /* en pantallas tactiles el :hover se queda pegado despues de tocar */
+  @media(hover:none){
+    .dia:hover{border-color:var(--linea);background:var(--panel)}
+    .nav button:hover{background:var(--panel);border-color:var(--linea)}
+    .fondo-btn:hover{background:var(--panel);border-color:var(--linea);color:var(--gris)}
+    .fondo-btn.activo:hover{background:var(--acento);border-color:var(--acento);color:#fff}
+    .foto-zona:hover{border-color:var(--gris-claro);background:#faf9f7}
+  }
+
+  /* ===== ASPECTO SOBRE LAS FOTOS =====
+     Va aparte de la distribucion a proposito: al girar el telefono el ancho
+     pasa de ~390px a ~850px y se salia del max-width, volviendo al fondo
+     opaco con paneles blancos. La segunda condicion cubre ese caso. */
+  @media (max-width:640px), (max-height:600px) and (orientation:landscape){
+
+    .velo{background:transparent}
+
+    /* Arriba: sin panel, flotando con marco oscuro */
+    header.top{
+      border:1.5px solid rgba(0,0,0,.65);
+      border-radius:16px;
+      background:rgba(0,0,0,.2);
+      -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+      box-shadow:none;
+    }
+    header.top h1{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.9)}
+    header.top p{color:rgba(255,255,255,.92);text-shadow:0 1px 5px rgba(0,0,0,.85)}
+
+    .estado{
+      background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.35);
+      color:#fff;text-shadow:none;
+    }
+    .estado.nube{background:rgba(40,95,66,.72);border-color:rgba(255,255,255,.4);color:#fff}
+    .estado.malo{background:rgba(122,53,41,.72);border-color:rgba(255,255,255,.4);color:#fff}
+
+    .fondo-btn{
+      background:rgba(0,0,0,.45);border:1.5px solid rgba(0,0,0,.65);color:#fff;
+    }
+    .fondo-btn.activo{background:var(--acento);border-color:rgba(0,0,0,.65);color:#fff}
+
+    .stat{
+      border:1.5px solid rgba(0,0,0,.65);
+      background:rgba(0,0,0,.2);
+      -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+      box-shadow:none;
+    }
+    .stat b{color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.9)}
+    .stat span{color:rgba(255,255,255,.85);text-shadow:0 1px 4px rgba(0,0,0,.85)}
+
+    /* El calendario si conserva el vidrio: son numeros pequenos y necesitan
+       fondo claro detras para leerse. El desenfoque va solo aqui, no en cada
+       dia: 40 desenfoques ahogarian el telefono. */
+    .card{
+      border-radius:18px;
+      border:1.5px solid rgba(0,0,0,.55);
+      background:rgba(255,255,255,.42);
+      -webkit-backdrop-filter:blur(18px) saturate(1.3);
+      backdrop-filter:blur(18px) saturate(1.3);
+      box-shadow:none;
+    }
+    .nav button{background:rgba(255,255,255,.62);border-color:rgba(0,0,0,.3)}
+    .dias-semana div{color:var(--gris)}
+
+    .dia{
+      background:rgba(255,255,255,.4);
+      border-color:rgba(255,255,255,.65);
+      border-radius:10px;
+    }
+    .dia:hover{background:rgba(255,255,255,.4)}
+    .dia .num{color:var(--acento)}
+    .dia.pasado{opacity:.72}
+
+    footer{
+      border:none;background:transparent;
+      color:rgba(255,255,255,.9);text-shadow:0 1px 5px rgba(0,0,0,.9);
+    }
+  }
+
+  /* ===== telefono: distribucion (solo en vertical) ===== */
   @media(max-width:640px){
     body{
       padding:calc(16px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
               calc(28px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
     }
 
-    /* vidrio esmerilado: se ven las fotos detras y el texto se sigue leyendo */
     header.top{
       flex-direction:column;align-items:stretch;gap:10px;
-      margin-bottom:14px;padding:14px;border-radius:16px;
-      border:1px solid rgba(255,255,255,.5);
-      background:rgba(255,255,255,.5);
-      -webkit-backdrop-filter:blur(16px) saturate(1.3);
-      backdrop-filter:blur(16px) saturate(1.3);
-      box-shadow:0 6px 22px rgba(0,0,0,.07);
+      margin-bottom:14px;padding:14px;
     }
     header.top h1{font-size:24px}
-    header.top p{font-size:13px;color:var(--gris)}
+    header.top p{font-size:13px}
     .fondo-btn{align-self:flex-start;padding:8px 14px}
 
     .stats{gap:8px;margin:14px 0 16px}
-    .stat{
-      flex:1 1 calc(50% - 4px);min-width:0;padding:10px 12px;
-      border:1px solid rgba(255,255,255,.5);
-      background:rgba(255,255,255,.55);
-      -webkit-backdrop-filter:blur(16px) saturate(1.3);
-      backdrop-filter:blur(16px) saturate(1.3);
-    }
+    .stat{flex:1 1 calc(50% - 4px);min-width:0;padding:10px 12px}
     .stat b{font-size:18px}
-    .stat span{color:var(--gris)}
 
-    /* el desenfoque va solo aqui, no en cada dia: 40 desenfoques ahogarian
-       el telefono. Las celdas de dentro solo se vuelven translucidas. */
-    .card{
-      padding:12px 10px;border-radius:18px;
-      border:1px solid rgba(255,255,255,.5);
-      background:rgba(255,255,255,.46);
-      -webkit-backdrop-filter:blur(18px) saturate(1.3);
-      backdrop-filter:blur(18px) saturate(1.3);
-      box-shadow:0 6px 22px rgba(0,0,0,.07);
-    }
-    .nav button{
-      background:rgba(255,255,255,.6);
-      border-color:rgba(255,255,255,.7);
-    }
+    .card{padding:12px 10px}
     .nav{gap:6px;margin-bottom:12px}
     .nav h2{font-size:16px}
     .nav button{width:38px;height:38px}
     .hoy-btn{height:38px;padding:0 13px}
 
     .dias-semana{gap:4px}
-    .dias-semana div{font-size:10px;letter-spacing:.5px;padding:2px 0;color:var(--gris)}
+    .dias-semana div{font-size:10px;letter-spacing:.5px;padding:2px 0}
     .grid{gap:4px}
 
     /* celdas cuadradas: la foto llena el dia y el numero va encima */
     .dia{
-      min-height:0;aspect-ratio:1/1;padding:4px;border-radius:10px;gap:0;
+      min-height:0;aspect-ratio:1/1;padding:4px;gap:0;
       align-items:flex-start;
-      background:rgba(255,255,255,.42);
-      border-color:rgba(255,255,255,.6);
     }
-    .dia:hover{background:rgba(255,255,255,.42)}
-    .dia .num{
-      font-size:12px;position:relative;z-index:2;padding:0 0 0 1px;
-      color:var(--acento);
-    }
-    .dia.pasado{opacity:.72}
+    .dia .num{font-size:12px;position:relative;z-index:2;padding:0 0 0 1px}
     .dia .evento{
       position:absolute;inset:0;border:none;border-radius:9px;padding:0;
       background:var(--acento);
@@ -294,13 +335,7 @@
     .dia.tiene .num{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
     .dia.hoy{box-shadow:inset 0 0 0 2px var(--acento)}
 
-    footer{
-      margin-top:20px;padding:10px 12px;border-radius:12px;
-      border:1px solid rgba(255,255,255,.45);
-      background:rgba(255,255,255,.45);
-      -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
-      color:var(--gris);text-align:center;
-    }
+    footer{margin-top:20px;padding:10px 12px;text-align:center}
 
     /* el modal se vuelve una hoja que sube desde abajo */
     .fondo{padding:0;align-items:flex-end}
@@ -335,14 +370,6 @@
     .stat span{font-size:10px}
   }
 
-  /* en pantallas tactiles el :hover se queda pegado despues de tocar */
-  @media(hover:none){
-    .dia:hover{border-color:var(--linea);background:var(--panel)}
-    .nav button:hover{background:var(--panel);border-color:var(--linea)}
-    .fondo-btn:hover{background:var(--panel);border-color:var(--linea);color:var(--gris)}
-    .fondo-btn.activo:hover{background:var(--acento);border-color:var(--acento);color:#fff}
-    .foto-zona:hover{border-color:var(--gris-claro);background:#faf9f7}
-  }
 </style>
 </head>
 <body>
