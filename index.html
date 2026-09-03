@@ -433,10 +433,42 @@
 
   function $(id){ return document.getElementById(id); }
 
+  /* ================== IMAGENES ==================
+     Vercel corre en Linux y distingue mayusculas de minusculas, y las fotos
+     de uploads/ solo existen en el servidor local. Por eso comprobamos que
+     cada imagen cargue de verdad antes de usarla: si falta, se omite en vez
+     de dejar un hueco transparente, y se avisa en la consola. */
+
+  var fotosOk = {};   // ruta -> true / false, ya comprobada
+
+  function comprobarFoto(url, cb){
+    if(Object.prototype.hasOwnProperty.call(fotosOk, url)){ cb(fotosOk[url]); return; }
+    var img = new Image();
+    img.onload  = function(){ fotosOk[url] = true;  cb(true); };
+    img.onerror = function(){
+      fotosOk[url] = false;
+      console.warn('Imagen no encontrada (404): ' + url);
+      cb(false);
+    };
+    img.src = url;
+  }
+
+  function comprobarVarias(lista, cb){
+    var pendientes = lista.filter(function(u){
+      return u && !Object.prototype.hasOwnProperty.call(fotosOk, u);
+    });
+    if(!pendientes.length){ cb(false); return; }
+    var faltan = pendientes.length;
+    pendientes.forEach(function(u){
+      comprobarFoto(u, function(){ if(--faltan === 0) cb(true); });
+    });
+  }
+
+  function fotoUsable(url){ return !!url && fotosOk[url] === true; }
+
   /* ================== ALMACENAMIENTO ==================
-     Todo se guarda en MySQL a traves de api.php, y las fotos como archivos
-     en uploads/. Si el servidor no responde, se usa este navegador como
-     respaldo para no perder lo que escribas. */
+     En Vercel se lee de MySQL (Aiven) por /api/salidas; en XAMPP por api.php.
+     Si ninguno responde, se usa este navegador como respaldo. */
 
   function cargarLocal(){
     try {
@@ -477,28 +509,104 @@
     return o;
   }
 
-  // pide la lista completa al servidor
+  /* Dos servidores posibles, se prueba en este orden:
+       vercel -> funciones Node (/api/*) contra MySQL de Aiven, fotos en Cloudinary
+       php    -> api.php de XAMPP contra MySQL local, fotos en uploads/
+     El primero que responda manda, y se usa el mismo para escribir. */
+  var SERVIDORES = [
+    { modo:'vercel', leer:'/api/salidas',            guardar:'/api/guardar', borrar:'/api/borrar' },
+    { modo:'php',    leer:API + '?accion=listar',    guardar:API,            borrar:API }
+  ];
+  var servidor = null;   // el que respondio
+
   function recargar(primera){
-    fetch(API + '?accion=listar', {cache:'no-store'})
-      .then(function(r){ return r.json(); })
+    intentarLeer(0, primera);
+  }
+
+  function intentarLeer(i, primera){
+    if(i >= SERVIDORES.length){
+      // ninguno respondio: nos quedamos con lo del navegador
+      if(primera){
+        enNube = false;
+        servidor = null;
+        salidas = cargarLocal();
+        estado('Solo en este dispositivo', '');
+        pintar();
+      } else {
+        estado('Sin conexion con el servidor', 'malo');
+      }
+      return;
+    }
+
+    var s = SERVIDORES[i];
+    fetch(s.leer, {cache:'no-store'})
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function(j){
-        if(!j.ok) throw new Error(j.error || 'error');
+        if(!j.ok) throw new Error(j.error || 'respuesta invalida');
         enNube = true;
+        servidor = s;
         salidas = filasASalidas(j.datos);
         estado('Sincronizado', 'nube');
         pintar();
       })
       ['catch'](function(e){
-        console.error(e);
-        if(primera){
-          enNube = false;
-          salidas = cargarLocal();
-          estado('Solo en este dispositivo', '');
-          pintar();
-        } else {
-          estado('Sin conexion con el servidor', 'malo');
-        }
+        console.warn('No responde ' + s.leer + ': ' + e.message);
+        intentarLeer(i + 1, primera);
       });
+  }
+
+  /* Vercel recibe JSON (sus funciones no leen multipart) y api.php recibe
+     FormData con el archivo. Esto arma la peticion que toque. */
+  function peticionGuardar(fecha, datos){
+    if(servidor.modo === 'vercel'){
+      return fetch(servidor.guardar, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          fecha:  fecha,
+          titulo: datos.titulo,
+          hora:   datos.hora,
+          tipo:   datos.tipo,
+          lugar:  datos.lugar,
+          nota:   datos.nota,
+          foto:   datos.foto || ''      // data:... nueva, URL que ya tenia, o vacio
+        })
+      });
+    }
+
+    var fd = new FormData();
+    fd.append('accion', 'guardar');
+    fd.append('fecha',  fecha);
+    fd.append('titulo', datos.titulo);
+    fd.append('hora',   datos.hora);
+    fd.append('tipo',   datos.tipo);
+    fd.append('lugar',  datos.lugar);
+    fd.append('nota',   datos.nota);
+
+    if(datos.foto && datos.foto.indexOf('data:') === 0){
+      fd.append('archivo', dataUrlABlob(datos.foto), fecha + '.jpg');
+      fd.append('foto', '');
+    } else {
+      fd.append('foto', datos.foto || '');
+    }
+    return fetch(servidor.guardar, {method:'POST', body:fd});
+  }
+
+  function peticionBorrar(fecha){
+    if(servidor.modo === 'vercel'){
+      return fetch(servidor.borrar, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({fecha: fecha})
+      });
+    }
+    var fd = new FormData();
+    fd.append('accion', 'borrar');
+    fd.append('fecha',  fecha);
+    return fetch(servidor.borrar, {method:'POST', body:fd});
   }
 
   function iniciar(){
@@ -571,13 +679,14 @@
       var ev = salidas[k];
       if(ev){
         var caja = document.createElement('div');
+        var tieneFoto = fotoUsable(ev.foto);   // solo si la imagen carga de verdad
         cel.className += ' tiene';
-        caja.className = 'evento' + (ev.foto ? ' con-foto' : '');
+        caja.className = 'evento' + (tieneFoto ? ' con-foto' : '');
 
-        if(ev.foto){
+        if(tieneFoto){
           var th = document.createElement('div');
           th.className = 'thumb';
-          th.style.backgroundImage = 'url(' + ev.foto + ')';
+          th.style.backgroundImage = 'url("' + ev.foto + '")';
           caja.appendChild(th);
         }
 
@@ -605,6 +714,11 @@
 
     pintarStats();
     pintarCollage();
+
+    // comprueba las imagenes que aun no conocemos y, si alguna falta, repinta
+    comprobarVarias(todasLasFotos(), function(huboCambios){
+      if(huboCambios) pintar();
+    });
   }
 
   function todasLasFotos(){
@@ -616,7 +730,8 @@
   function pintarCollage(){
     var cont = $('collage'), velo = $('velo');
     cont.innerHTML = '';
-    var fotos = todasLasFotos();
+    // solo las que se sabe que cargan: una ruta rota dejaria huecos vacios
+    var fotos = todasLasFotos().filter(fotoUsable);
 
     $('fondoBtn').className = 'fondo-btn' + (collageOn && fotos.length ? ' activo' : '');
     $('fondoBtn').textContent = collageOn ? 'Fondo con fotos' : 'Fondo liso';
@@ -641,7 +756,7 @@
       var t = document.createElement('div');
       // desfase por fila para que no se repita la misma foto en columna
       var idx = (i + Math.floor(i / cols) * 3) % fotos.length;
-      t.style.backgroundImage = 'url(' + fotos[idx] + ')';
+      t.style.backgroundImage = 'url("' + fotos[idx] + '")';
       if(fotos.length > 2 && i % 5 === 2) t.className = 'grande';
       cont.appendChild(t);
     }
@@ -791,25 +906,10 @@
       return;
     }
 
-    var fd = new FormData();
-    fd.append('accion', 'guardar');
-    fd.append('fecha',  fecha);
-    fd.append('titulo', datos.titulo);
-    fd.append('hora',   datos.hora);
-    fd.append('tipo',   datos.tipo);
-    fd.append('lugar',  datos.lugar);
-    fd.append('nota',   datos.nota);
-
-    var hayFotoNueva = fotoActual && fotoActual.indexOf('data:') === 0;
-    if(hayFotoNueva){
-      fd.append('archivo', dataUrlABlob(fotoActual), fecha + '.jpg');
-      fd.append('foto', '');
-    } else {
-      fd.append('foto', fotoActual || '');   // la que ya tenia, o vacio si la quitaron
-    }
-
+    var hayFotoNueva = !!datos.foto && datos.foto.indexOf('data:') === 0;
     ocupado(true, hayFotoNueva ? 'Subiendo foto...' : 'Guardando...');
-    fetch(API, {method:'POST', body:fd})
+
+    peticionGuardar(fecha, datos)
       .then(function(r){ return r.json(); })
       .then(function(j){
         ocupado(false);
@@ -835,12 +935,8 @@
       return;
     }
 
-    var fd = new FormData();
-    fd.append('accion', 'borrar');
-    fd.append('fecha',  fecha);
-
     ocupado(true, 'Borrando...');
-    fetch(API, {method:'POST', body:fd})
+    peticionBorrar(fecha)
       .then(function(r){ return r.json(); })
       .then(function(j){
         ocupado(false);

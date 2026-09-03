@@ -1,0 +1,9 @@
+# Estos archivos son solo para XAMPP (PHP). Vercel no ejecuta PHP: si se
+# publican, se sirven como texto plano y quedaria a la vista el codigo y la
+# configuracion de la base de datos. En Vercel manda /api/*.js.
+api.php
+db.php
+uploads/
+
+# node_modules lo instala Vercel por su cuenta
+node_modules/

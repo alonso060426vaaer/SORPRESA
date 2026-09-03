@@ -1,0 +1,8 @@
+node_modules/
+.vercel
+.env
+.env*.local
+
+# fotos subidas en el XAMPP local: en Vercel van a Cloudinary
+uploads/*
+!uploads/.htaccess

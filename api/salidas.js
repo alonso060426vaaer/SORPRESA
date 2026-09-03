@@ -4,9 +4,9 @@
    en MySQL de Aiven y la devuelve como JSON.
 
    Variables de entorno (Vercel -> Settings -> Environment Variables):
-     AIVEN_PASSWORD   (obligatoria)
-     AIVEN_HOST, AIVEN_PORT, AIVEN_USER, AIVEN_DATABASE  (opcionales,
-     ya tienen los valores de tu proyecto como respaldo)
+     AIVEN_HOST, AIVEN_PORT, AIVEN_USER, AIVEN_PASSWORD, AIVEN_DB
+   Solo AIVEN_PASSWORD es imprescindible: las otras cuatro tienen como
+   respaldo los valores de tu proyecto, por si alguna no quedo cargada.
 
    Respuesta:
      { "ok": true, "datos": [ { fecha, titulo, hora, tipo, lugar, nota, foto } ] }
@@ -22,11 +22,11 @@ let pool;
 function obtenerPool() {
   if (!pool) {
     pool = mysql.createPool({
-      host:     process.env.AIVEN_HOST     || 'mysql-2acfd6e9-kelvincampana06-e3b0.h.aivencloud.com',
+      host:     process.env.AIVEN_HOST || 'mysql-2acfd6e9-kelvincampana06-e3b0.h.aivencloud.com',
       port:     Number(process.env.AIVEN_PORT || 26500),
-      user:     process.env.AIVEN_USER     || 'avnadmin',
+      user:     process.env.AIVEN_USER || 'avnadmin',
       password: process.env.AIVEN_PASSWORD,
-      database: process.env.AIVEN_DATABASE || 'defaultdb',
+      database: process.env.AIVEN_DB || process.env.AIVEN_DATABASE || 'defaultdb',
 
       // Aiven exige TLS. Lo ideal es validar con su certificado CA, pero
       // aqui va como lo pediste.
