@@ -1,0 +1,7 @@
+# En esta carpeta solo hay imagenes: nada de ejecutar codigo aqui.
+php_flag engine off
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .phar
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
